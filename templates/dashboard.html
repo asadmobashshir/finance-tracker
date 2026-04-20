@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Finance Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0a0f; --card: #111118; --border: #1e1e2e;
+    --green: #00ff9d; --red: #ff4d6d; --blue: #4d9eff;
+    --yellow: #ffd166; --text: #e8e8f0; --muted: #6b6b8a;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Mono',monospace; min-height:100vh; }
+
+  header {
+    padding:2rem 2.5rem 1rem; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;
+  }
+  header h1 { font-family:'Syne',sans-serif; font-size:1.8rem; font-weight:800; letter-spacing:-1px; }
+  header h1 span { color:var(--green); }
+  .header-actions { display:flex; align-items:center; gap:0.8rem; flex-wrap:wrap; }
+  .live-dot { width:8px; height:8px; background:var(--green); border-radius:50%; animation:pulse 1.5s infinite; display:inline-block; margin-right:6px; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.4)} }
+
+  .container { padding:2rem 2.5rem; max-width:1400px; margin:0 auto; }
+
+  .controls {
+    display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap;
+    background:var(--card); border:1px solid var(--border);
+    border-radius:12px; padding:1.2rem 1.5rem; margin-bottom:2rem;
+  }
+  .ctrl-group { display:flex; flex-direction:column; gap:4px; }
+  .ctrl-group label { font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+  .ctrl-group input {
+    background:var(--bg); border:1px solid var(--border); color:var(--text);
+    padding:0.5rem 0.8rem; border-radius:8px; font-family:'DM Mono',monospace;
+    font-size:0.85rem; outline:none; transition:border-color .2s;
+  }
+  .ctrl-group input:focus { border-color:var(--green); }
+
+  .btn {
+    padding:0.55rem 1.4rem; border-radius:8px; border:none;
+    font-family:'Syne',sans-serif; font-weight:600; font-size:0.85rem;
+    cursor:pointer; transition:all .2s;
+  }
+  .btn-green  { background:var(--green); color:#000; }
+  .btn-green:hover  { background:#00cc7d; transform:translateY(-1px); }
+  .btn-blue   { background:var(--blue); color:#000; }
+  .btn-blue:hover   { background:#2d7fd4; transform:translateY(-1px); }
+  .btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); }
+  .btn-outline:hover { border-color:var(--green); color:var(--green); }
+  .btn:disabled { opacity:0.5; cursor:not-allowed; transform:none !important; }
+
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1rem; margin-bottom:2rem; }
+  .kpi-card {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:12px; padding:1.3rem 1.5rem; transition:transform .2s,border-color .2s;
+  }
+  .kpi-card:hover { transform:translateY(-3px); border-color:var(--green); }
+  .kpi-label { font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:0.5rem; }
+  .kpi-value { font-family:'Syne',sans-serif; font-size:2rem; font-weight:800; }
+  .kpi-value.green { color:var(--green); }
+  .kpi-value.red   { color:var(--red); }
+  .kpi-value.blue  { color:var(--blue); }
+  .kpi-value.yellow{ color:var(--yellow); }
+  .kpi-sub { font-size:0.7rem; color:var(--muted); margin-top:4px; }
+
+  .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:2rem; }
+  .chart-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:1.5rem; }
+  .chart-card.full { grid-column:1/-1; }
+  .chart-title { font-family:'Syne',sans-serif; font-size:0.9rem; font-weight:600; margin-bottom:1.2rem; }
+  .chart-title span { color:var(--muted); font-size:0.75rem; font-weight:400; margin-left:8px; }
+  canvas { max-height:260px; }
+
+  .table-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:1.5rem; margin-bottom:2rem; }
+  .table-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem; }
+  .table-wrapper { overflow-x:auto; max-height:320px; overflow-y:auto; }
+  .table-wrapper::-webkit-scrollbar { width:4px; height:4px; }
+  .table-wrapper::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+  table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+  thead th {
+    text-align:left; padding:0.6rem 1rem;
+    font-size:0.65rem; text-transform:uppercase; letter-spacing:1px;
+    color:var(--muted); border-bottom:1px solid var(--border);
+    position:sticky; top:0; background:var(--card); z-index:1;
+  }
+  tbody tr { border-bottom:1px solid #1a1a28; transition:background .15s; }
+  tbody tr:hover { background:#15151f; }
+  tbody td { padding:0.7rem 1rem; }
+  .badge { padding:2px 10px; border-radius:20px; font-size:0.7rem; font-weight:600; }
+  .badge-income  { background:rgba(0,255,157,.12); color:var(--green); }
+  .badge-expense { background:rgba(255,77,109,.12); color:var(--red); }
+
+  /* ML Status Bar */
+  .ml-status {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:12px; padding:1rem 1.5rem; margin-bottom:2rem;
+    display:flex; align-items:center; gap:1rem; flex-wrap:wrap;
+  }
+  .ml-status-text { font-size:0.8rem; color:var(--muted); flex:1; }
+  .ml-status-text.success { color:var(--green); }
+  .ml-status-text.error   { color:var(--red); }
+
+  /* Modal */
+  .modal-overlay {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,.7); backdrop-filter:blur(4px);
+    z-index:100; align-items:center; justify-content:center;
+  }
+  .modal-overlay.active { display:flex; }
+  .modal {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:16px; padding:2rem; width:420px; max-width:95vw;
+  }
+  .modal h2 { font-family:'Syne',sans-serif; font-size:1.2rem; margin-bottom:1.5rem; }
+  .form-group { margin-bottom:1rem; }
+  .form-group label { display:block; font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; }
+  .form-group input, .form-group select {
+    width:100%; background:var(--bg); border:1px solid var(--border);
+    color:var(--text); padding:0.6rem 0.9rem; border-radius:8px;
+    font-family:'DM Mono',monospace; font-size:0.85rem; outline:none;
+    transition:border-color .2s;
+  }
+  .form-group input:focus, .form-group select:focus { border-color:var(--green); }
+  .form-group select option { background:var(--card); }
+  .err { color:var(--red); font-size:0.7rem; margin-top:3px; display:none; }
+  .modal-actions { display:flex; gap:0.8rem; margin-top:1.5rem; }
+
+  .toast {
+    position:fixed; bottom:2rem; right:2rem;
+    padding:0.8rem 1.5rem; border-radius:10px;
+    font-family:'Syne',sans-serif; font-weight:600; font-size:0.85rem;
+    transform:translateY(100px); opacity:0; transition:all .3s; z-index:200;
+  }
+  .toast.show { transform:translateY(0); opacity:1; }
+  .toast.success { background:var(--green); color:#000; }
+  .toast.error   { background:var(--red);   color:#fff; }
+
+  @media(max-width:768px) {
+    .charts-grid { grid-template-columns:1fr; }
+    .chart-card.full { grid-column:1; }
+    header { flex-direction:column; align-items:flex-start; }
+    .container { padding:1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>💰 Finance <span>Dashboard</span></h1>
+  <div class="header-actions">
+    <span style="font-size:.75rem;color:var(--muted)"><span class="live-dot"></span>Live</span>
+    <button class="btn btn-blue" id="mlBtn" onclick="runML()">⚡ Run ML Analysis</button>
+    <button class="btn btn-green" onclick="openModal()">+ Add Transaction</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ML Status -->
+  <div class="ml-status">
+    <span style="font-size:0.8rem;color:var(--muted);font-family:'Syne',sans-serif;font-weight:600;">ML STATUS</span>
+    <span class="ml-status-text" id="mlStatusText">Click "Run ML Analysis" to detect anomalies and generate forecasts → then Refresh Power BI</span>
+  </div>
+
+  <!-- Date Filter -->
+  <div class="controls">
+    <div class="ctrl-group">
+      <label>Start Date (dd-mm-yyyy)</label>
+      <input type="text" id="startDate" placeholder="01-07-2024"/>
+    </div>
+    <div class="ctrl-group">
+      <label>End Date (dd-mm-yyyy)</label>
+      <input type="text" id="endDate" placeholder="17-04-2026"/>
+    </div>
+    <button class="btn btn-green" onclick="applyFilter()">Apply Filter</button>
+    <button class="btn btn-outline" onclick="clearFilter()">Clear</button>
+    <div style="margin-left:auto;font-size:.75rem;color:var(--muted)" id="rangeInfo"></div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Income</div>
+      <div class="kpi-value green" id="kpi-income">$0.00</div>
+      <div class="kpi-sub">All income transactions</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Expense</div>
+      <div class="kpi-value red" id="kpi-expense">$0.00</div>
+      <div class="kpi-sub">All expense transactions</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Net Savings</div>
+      <div class="kpi-value blue" id="kpi-savings">$0.00</div>
+      <div class="kpi-sub">Income minus expenses</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Transactions</div>
+      <div class="kpi-value yellow" id="kpi-count">0</div>
+      <div class="kpi-sub">Total entries</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-card full">
+      <div class="chart-title">Income vs Expenses Over Time <span>daily</span></div>
+      <canvas id="lineChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Income vs Expense Split <span>donut</span></div>
+      <canvas id="donutChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Monthly Comparison <span>bar</span></div>
+      <canvas id="barChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Transactions Table -->
+  <div class="table-card">
+    <div class="table-header">
+      <div class="chart-title" style="margin:0">All Transactions <span id="txn-count-label"></span></div>
+      <input type="text" id="searchBox" placeholder="Search..." oninput="filterTable()"
+        style="background:var(--bg);border:1px solid var(--border);color:var(--text);
+               padding:.4rem .8rem;border-radius:8px;font-family:'DM Mono',monospace;
+               font-size:.8rem;outline:none;width:180px"/>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Amount</th><th>Category</th><th>Description</th></tr>
+        </thead>
+        <tbody id="txn-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Add Transaction Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2>➕ New Transaction</h2>
+    <div class="form-group">
+      <label>Date (dd-mm-yyyy)</label>
+      <input type="text" id="form-date" placeholder="17-04-2026"/>
+      <div class="err" id="err-date">Use format dd-mm-yyyy (e.g. 17-04-2026)</div>
+    </div>
+    <div class="form-group">
+      <label>Amount</label>
+      <input type="number" id="form-amount" placeholder="0.00" step="0.01" min="0.01"/>
+      <div class="err" id="err-amount">Enter a valid amount greater than 0</div>
+    </div>
+    <div class="form-group">
+      <label>Category</label>
+      <select id="form-category">
+        <option value="Income">Income</option>
+        <option value="Expense">Expense</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Description (optional)</label>
+      <input type="text" id="form-desc" placeholder="e.g. Salary, Groceries"/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-green" onclick="submitTransaction()" style="flex:1">Save Transaction</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let lineChart, donutChart, barChart;
+let allTransactions = [];
+
+const chartDefaults = {
+  plugins: { legend: { labels: { color:'#e8e8f0', font:{family:'DM Mono'} } } },
+  scales: {
+    x: { ticks:{color:'#6b6b8a',font:{family:'DM Mono',size:10}}, grid:{color:'#1e1e2e'} },
+    y: { ticks:{color:'#6b6b8a',font:{family:'DM Mono',size:10}}, grid:{color:'#1e1e2e'} }
+  }
+};
+
+function validDate(v) { return /^\d{2}-\d{2}-\d{4}$/.test(v.trim()); }
+
+// ── ML ANALYSIS ──────────────────────────────────────────────────────────────
+function runML() {
+  const btn = document.getElementById('mlBtn');
+  const statusEl = document.getElementById('mlStatusText');
+  btn.disabled = true;
+  btn.textContent = '⏳ Running...';
+  statusEl.className = 'ml-status-text';
+  statusEl.textContent = 'Running ML analysis... please wait';
+
+  fetch('/api/run_ml', { method:'POST' })
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false;
+      btn.textContent = '⚡ Run ML Analysis';
+      if (data.success) {
+        statusEl.className = 'ml-status-text success';
+        statusEl.textContent = '✅ ' + data.message;
+        showToast('✅ ML done! Refresh Power BI now.', 'success');
+      } else {
+        statusEl.className = 'ml-status-text error';
+        statusEl.textContent = '❌ ' + data.message;
+        showToast('❌ ML failed: ' + data.message, 'error');
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = '⚡ Run ML Analysis';
+      statusEl.className = 'ml-status-text error';
+      statusEl.textContent = '❌ Could not connect to server';
+    });
+}
+
+// ── LOAD DATA ─────────────────────────────────────────────────────────────────
+function applyFilter() {
+  const s = document.getElementById('startDate').value.trim();
+  const e = document.getElementById('endDate').value.trim();
+  if ((s && !validDate(s)) || (e && !validDate(e))) {
+    showToast('❌ Use dd-mm-yyyy format', 'error'); return;
+  }
+  loadData(s, e);
+}
+
+function clearFilter() {
+  document.getElementById('startDate').value = '';
+  document.getElementById('endDate').value = '';
+  loadData('', '');
+}
+
+function loadData(start, end) {
+  let url = '/api/transactions';
+  const p = [];
+  if (start) p.push('start=' + start);
+  if (end)   p.push('end='   + end);
+  if (p.length) url += '?' + p.join('&');
+
+  fetch(url).then(r => r.json()).then(data => {
+    allTransactions = data.transactions;
+
+    document.getElementById('kpi-income').textContent  = '$' + data.total_income.toFixed(2);
+    document.getElementById('kpi-expense').textContent = '$' + data.total_expense.toFixed(2);
+    document.getElementById('kpi-count').textContent   = data.transactions.length;
+
+    const savEl = document.getElementById('kpi-savings');
+    savEl.textContent = '$' + data.net_savings.toFixed(2);
+    savEl.className   = 'kpi-value ' + (data.net_savings >= 0 ? 'blue' : 'red');
+
+    document.getElementById('rangeInfo').textContent =
+      start && end ? `Showing ${start} → ${end}` : `All data (${data.transactions.length} records)`;
+
+    updateCharts(data);
+    renderTable(data.transactions);
+  }).catch(() => showToast('❌ Failed to load data', 'error'));
+}
+
+// ── CHARTS ────────────────────────────────────────────────────────────────────
+function updateCharts(data) {
+  if (lineChart)  lineChart.destroy();
+  if (donutChart) donutChart.destroy();
+  if (barChart)   barChart.destroy();
+
+  lineChart = new Chart(document.getElementById('lineChart'), {
+    type:'line',
+    data:{ labels:data.chart_dates, datasets:[
+      { label:'Income',  data:data.chart_income,  borderColor:'#00ff9d', backgroundColor:'rgba(0,255,157,.08)', tension:.4, fill:true, pointRadius:4, pointBackgroundColor:'#00ff9d' },
+      { label:'Expense', data:data.chart_expense, borderColor:'#ff4d6d', backgroundColor:'rgba(255,77,109,.08)', tension:.4, fill:true, pointRadius:4, pointBackgroundColor:'#ff4d6d' }
+    ]},
+    options:{ responsive:true, ...chartDefaults }
+  });
+
+  donutChart = new Chart(document.getElementById('donutChart'), {
+    type:'doughnut',
+    data:{ labels:['Income','Expense'], datasets:[{
+      data:data.category_data,
+      backgroundColor:['rgba(0,255,157,.8)','rgba(255,77,109,.8)'],
+      borderColor:['#00ff9d','#ff4d6d'], borderWidth:2
+    }]},
+    options:{ responsive:true, plugins:{ legend:{ labels:{ color:'#e8e8f0', font:{family:'DM Mono'} } } } }
+  });
+
+  barChart = new Chart(document.getElementById('barChart'), {
+    type:'bar',
+    data:{ labels:data.monthly_labels, datasets:[
+      { label:'Income',  data:data.monthly_income,  backgroundColor:'rgba(0,255,157,.7)', borderRadius:6 },
+      { label:'Expense', data:data.monthly_expense, backgroundColor:'rgba(255,77,109,.7)', borderRadius:6 }
+    ]},
+    options:{ responsive:true, ...chartDefaults }
+  });
+}
+
+// ── TABLE ─────────────────────────────────────────────────────────────────────
+function renderTable(transactions) {
+  const tbody = document.getElementById('txn-table-body');
+  document.getElementById('txn-count-label').textContent = '(' + transactions.length + ' records)';
+  if (!transactions.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:2rem">No transactions found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = transactions.map(t => `
+    <tr>
+      <td>${t.date}</td>
+      <td style="color:${t.category==='Income'?'var(--green)':'var(--red)'}">$${parseFloat(t.amount).toFixed(2)}</td>
+      <td><span class="badge badge-${t.category.toLowerCase()}">${t.category}</span></td>
+      <td style="color:var(--muted)">${t.description||'—'}</td>
+    </tr>`).join('');
+}
+
+function filterTable() {
+  const q = document.getElementById('searchBox').value.toLowerCase();
+  renderTable(allTransactions.filter(t =>
+    t.date.includes(q) || t.category.toLowerCase().includes(q) ||
+    (t.description||'').toLowerCase().includes(q) || String(t.amount).includes(q)
+  ));
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+function openModal() {
+  const d = new Date();
+  document.getElementById('form-date').value    = String(d.getDate()).padStart(2,'0')+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+d.getFullYear();
+  document.getElementById('form-amount').value  = '';
+  document.getElementById('form-desc').value    = '';
+  document.getElementById('err-date').style.display   = 'none';
+  document.getElementById('err-amount').style.display = 'none';
+  document.getElementById('modalOverlay').classList.add('active');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
+
+function submitTransaction() {
+  const dateVal   = document.getElementById('form-date').value.trim();
+  const amountVal = document.getElementById('form-amount').value.trim();
+  let valid = true;
+
+  if (!validDate(dateVal)) {
+    document.getElementById('err-date').style.display = 'block'; valid = false;
+  } else { document.getElementById('err-date').style.display = 'none'; }
+
+  if (!amountVal || parseFloat(amountVal) <= 0) {
+    document.getElementById('err-amount').style.display = 'block'; valid = false;
+  } else { document.getElementById('err-amount').style.display = 'none'; }
+
+  if (!valid) return;
+
+  fetch('/api/add', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      date: dateVal, amount: parseFloat(amountVal),
+      category: document.getElementById('form-category').value,
+      description: document.getElementById('form-desc').value.trim()
+    })
+  }).then(r => r.json()).then(data => {
+    if (data.success) {
+      closeModal();
+      loadData('', '');
+      showToast('✅ Transaction saved!', 'success');
+    } else {
+      showToast('❌ ' + data.message, 'error');
+    }
+  }).catch(() => showToast('❌ Failed to save', 'error'));
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = 'toast ' + type + ' show';
+  setTimeout(() => t.className = 'toast', 3500);
+}
+
+document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target===document.getElementById('modalOverlay')) closeModal(); });
+
+loadData('', '');
+</script>
+</body>
+</html>
